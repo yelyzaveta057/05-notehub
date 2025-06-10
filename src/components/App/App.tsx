@@ -1,35 +1,65 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useDebounce } from "use-debounce";
+
+import { fetchNotes } from "../services/noteService";
+
+import css from "./App.module.css";
+
+import NoteModal from "../NoteModal/NoteModal";
+import SearchBox from "../SearchBox/SearchBox";
+import Pagination from "../Pagination/Pagination";
+import NoteList from "../NoteList/NoteList";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [page, setPage] = useState<number>(1);
+  const [query, setQuery] = useState<string>("");
+
+  const openModal = () => setIsModalOpen(true);
+  const closeModal = () => setIsModalOpen(false);
+
+  // Debounced search
+  const [debouncedQuery] = useDebounce(query, 400);
+
+  const { data, isSuccess } = useQuery({
+    queryKey: ["notes", debouncedQuery, page],
+    queryFn: () => fetchNotes(page, debouncedQuery),
+    placeholderData: keepPreviousData,
+  });
+
+  // Витягуємо нотатки та кількість сторінок
+  const notes = data?.data || [];
+  const totalPages = data?.totalPages || 1;
+
+  const updateQuery = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(event.target.value);
+    setPage(1);
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
+    <div className={css.app}>
+      <header className={css.toolbar}>
+        <SearchBox query={query} updateQuery={updateQuery} />
+        {totalPages > 1 && (
+          <Pagination
+            totalPages={totalPages}
+            currentPage={page}
+            onPageChange={setPage}
+          />
+        )}
+        <button className={css.button} onClick={openModal}>
+          Create note +
         </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+
+        {isModalOpen && <NoteModal onClose={closeModal} />}
+      </header>
+
+      <main>
+        {isSuccess && notes.length > 0 && <NoteList notes={notes} />}
+      </main>
+    </div>
+  );
 }
 
-export default App
+export default App;
