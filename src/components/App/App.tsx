@@ -1,65 +1,59 @@
 import { useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { fetchNotes } from "../services/noteService";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
 
-import { fetchNotes } from "../services/noteService";
-
-import css from "./App.module.css";
-
+import NoteList from "../NoteList/NoteList";
 import NoteModal from "../NoteModal/NoteModal";
 import SearchBox from "../SearchBox/SearchBox";
 import Pagination from "../Pagination/Pagination";
-import NoteList from "../NoteList/NoteList";
+import ErrorMessage from "../ErrorMessage/ErrorMessage";
 
-function App() {
+//css
+import css from "./App.module.css";
+
+export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [page, setPage] = useState<number>(1);
-  const [query, setQuery] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [debounceSearchTerm] = useDebounce(searchTerm, 1000);
+  const perPage = 12;
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["notes", debounceSearchTerm, currentPage],
+    queryFn: () => fetchNotes(currentPage, debounceSearchTerm, perPage),
+    placeholderData: keepPreviousData,
+  });
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
-  // Debounced search
-  const [debouncedQuery] = useDebounce(query, 400);
-
-  const { data, isSuccess } = useQuery({
-    queryKey: ["notes", debouncedQuery, page],
-    queryFn: () => fetchNotes(page, debouncedQuery),
-    placeholderData: keepPreviousData,
-  });
-
-  // Витягуємо нотатки та кількість сторінок
-  const notes = data?.data || [];
-  const totalPages = data?.totalPages || 1;
-
-  const updateQuery = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(event.target.value);
-    setPage(1);
+  const handleSearchChange = (newTerm: string) => {
+    setSearchTerm(newTerm);
+    setCurrentPage(1);
   };
 
   return (
     <div className={css.app}>
       <header className={css.toolbar}>
-        <SearchBox query={query} updateQuery={updateQuery} />
-        {totalPages > 1 && (
+        <SearchBox value={searchTerm} onChange={handleSearchChange} />
+        {data && data.totalPages > 1 && (
           <Pagination
-            totalPages={totalPages}
-            currentPage={page}
-            onPageChange={setPage}
+            currentPage={currentPage}
+            pageCount={data.totalPages}
+            onPageChange={setCurrentPage}
           />
         )}
         <button className={css.button} onClick={openModal}>
           Create note +
         </button>
-
-        {isModalOpen && <NoteModal onClose={closeModal} />}
       </header>
-
-      <main>
-        {isSuccess && notes.length > 0 && <NoteList notes={notes} />}
-      </main>
+      {isLoading && <strong className={css.loading}>Loading notes...</strong>}
+      {isError && searchTerm.trim() !== "" && (
+        <ErrorMessage message="Something went wrong. Please try again." />
+      )}
+      {data && <NoteList notes={data.notes} />}
+      {isModalOpen && <NoteModal onClose={closeModal} onSuccess={closeModal} />}
     </div>
   );
 }
-
-export default App;
