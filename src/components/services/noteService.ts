@@ -1,52 +1,39 @@
-
 import axios from 'axios';
-import type { Note } from '../../types/note';
+import type { Note, NewNoteData } from '../../types/note';
 
-const BASE_URL = 'https://notehub-public.goit.study/api';
-const token = import.meta.env.VITE_NOTEHUB_TOKEN;
+const BASE_URL = 'https://notehub-public.goit.study/api/notes';
+const TOKEN = import.meta.env.VITE_NOTEHUB_TOKEN;
 
-const axiosInstance = axios.create({
+const noteServiceClient = axios.create({
   baseURL: BASE_URL,
   headers: {
-    Authorization: `Bearer ${token}`,
+    Authorization: `Bearer ${TOKEN}`,
   },
 });
 
-// Отримати список нотаток (з пагінацією та пошуком)
 interface FetchNotesResponse {
-  data: Note[];
-  totalPages: number;
+    notes: Note[];
+    totalPages: number;
 }
 
 export const fetchNotes = async (
-  page: number = 1,
-  query: string = '',
-  perPage: number = 12
+  page = 1,
+  query = '',
+  perPage = 12
 ): Promise<FetchNotesResponse> => {
-  const response = await axiosInstance.get('/notes', {
-    params: { page, query, perPage },
-  });
+  const params: Record<string, string | number> = { page, perPage };
+  if (query.trim()) params.search = query;
 
-  return {
-    data: response.data.data,
-    totalPages: response.data.totalPages,
-  };
+  const res = await noteServiceClient.get<FetchNotesResponse>('/', { params });
+  return res.data;
 };
 
-// Створити нову нотатку
-export const createNote = async (
-  title: string,
-  text: string
-): Promise<Note> => {
-  const response = await axiosInstance.post<Note>('/notes', {
-    title,
-    text,
-  });
-  return response.data;
+export const createNote = async (noteData: NewNoteData): Promise<Note> => {
+  const res = await noteServiceClient.post<Note>('/', noteData);
+  return res.data;
 };
 
-// Видалити нотатку за ID
-export const deleteNote = async (id: string): Promise<Note> => {
-  const response = await axiosInstance.delete<Note>(`/notes/${id}`);
-  return response.data;
+export const deleteNote = async (noteId: number): Promise<Note> => {
+  const res = await noteServiceClient.delete<Note>(`/${noteId}`);
+  return res.data;
 };
